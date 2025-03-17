@@ -3,11 +3,16 @@ const router = express.Router();
 const Alert = require('../models/Alert');
 const auth = require('../middleware/auth');
 
-// Get all alerts (public)
-// No filtering by isActive or expiresAt since they’re not in the schema
+// Get active alerts (public)
 router.get('/', async (req, res) => {
   try {
-    const alerts = await Alert.find().sort({ createdAt: -1 }); // Sort by creation date, newest first
+    const alerts = await Alert.find({
+      isActive: true,
+      $or: [
+        { expiresAt: { $gt: new Date() } },
+        { expiresAt: null }
+      ]
+    }).sort({ createdAt: -1 });
     res.json(alerts);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -17,8 +22,7 @@ router.get('/', async (req, res) => {
 // Create alert (admin only)
 router.post('/', auth, async (req, res) => {
   try {
-    const { imageUrl } = req.body; // Expecting only imageUrl in the body
-    const alert = new Alert({ imageUrl }); // Create new alert with imageUrl
+    const alert = new Alert(req.body);
     await alert.save();
     res.status(201).json(alert);
   } catch (error) {
@@ -29,12 +33,7 @@ router.post('/', auth, async (req, res) => {
 // Update alert (admin only)
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { imageUrl } = req.body; // Expecting only imageUrl in the body
-    const alert = await Alert.findByIdAndUpdate(
-      req.params.id,
-      { imageUrl },
-      { new: true }
-    );
+    const alert = await Alert.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!alert) return res.status(404).json({ message: 'Alert not found' });
     res.json(alert);
   } catch (error) {
